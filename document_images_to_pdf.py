@@ -7,6 +7,8 @@ import cv2
 import skimage.morphology as skimo
 import skimage.transform as skit
 import skimage.exposure as skie
+import scipy.ndimage as scipynd
+import warnings
 import argparse
 import fpdf
 
@@ -38,10 +40,19 @@ def find_corners(binary_image):
     min_val = binary_image.min()
     max_val = binary_image.max()
     img_thresh = min_val+(threshold*(max_val-min_val))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        binary_image = skie.equalize_adapthist(binary_image, kernel_size=processing_width/50)
     binary_image = np.where(binary_image>img_thresh,1,0)
 
     binary_image = skimo.binary_erosion(binary_image, skimo.disk(processing_width/200))
     binary_image = skimo.binary_dilation(binary_image, skimo.disk(processing_width/200))
+
+    sx = scipynd.sobel(binary_image, axis=0, mode="constant")
+    sy = scipynd.sobel(binary_image, axis=1, mode="constant")
+    binary_image_edges = np.hypot(sx,sy)
+    binary_image_edges = np.where(binary_image_edges > 0.0, 1, 0)
 
     h,w = binary_image.shape
     tri_size_w = int(w/2)
@@ -52,9 +63,9 @@ def find_corners(binary_image):
     ci_ll = np.tril_indices(h,-(h-tri_size_w))
     ci_lr = [ci_ll[0],w-1-ci_ll[1]]
 
-    corner_mask = np.zeros_like(binary_image)
+    corner_mask = np.zeros_like(binary_image_edges)
     corner_mask[ci_ul] = 1
-    binary_image_ul = binary_image*corner_mask
+    binary_image_ul = binary_image_edges*corner_mask
     white_points_ul = np.where(binary_image_ul==1)
     white_positions_ul = np.column_stack([white_points_ul[1],white_points_ul[0]])
     ul_positions = np.array(white_positions_ul)+1
@@ -64,7 +75,7 @@ def find_corners(binary_image):
 
     corner_mask[:] = 0
     corner_mask[ci_ur] = 1
-    binary_image_ur = binary_image*corner_mask
+    binary_image_ur = binary_image_edges*corner_mask
     white_points_ur = np.where(binary_image_ur==1)
     white_positions_ur = np.column_stack([white_points_ur[1],white_points_ur[0]])
     ur_positions = np.array(white_positions_ur)+1
@@ -78,7 +89,7 @@ def find_corners(binary_image):
 
     corner_mask[:] = 0
     corner_mask[ci_ll] = 1
-    binary_image_ll = binary_image*corner_mask
+    binary_image_ll = binary_image_edges*corner_mask
     white_points_ll = np.where(binary_image_ll==1)
     white_positions_ll = np.column_stack([white_points_ll[1],white_points_ll[0]])
     ll_positions = np.array(white_positions_ll)+1
@@ -92,7 +103,7 @@ def find_corners(binary_image):
 
     corner_mask[:] = 0
     corner_mask[ci_lr] = 1
-    binary_image_lr = binary_image*corner_mask
+    binary_image_lr = binary_image_edges*corner_mask
     white_points_lr = np.where(binary_image_lr==1)
     white_positions_lr = np.column_stack([white_points_lr[1],white_points_lr[0]])
     lr_positions = np.array(white_positions_lr)+1
