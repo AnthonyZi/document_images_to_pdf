@@ -16,7 +16,7 @@ import fpdf
 parser = argparse.ArgumentParser(description="clean document-photographs")
 
 parser.add_argument('files', metavar="INPUT_IMAGES", type=str, nargs='+', help="input-images to clean")
-parser.add_argument('-t','--threshold', metavar="THRESHOLD", type=float, default=0.90, help="grayscale-threshold to binarise image")
+parser.add_argument('-t','--threshold', metavar="THRESHOLD", type=float, default=0.80, help="grayscale-threshold to binarise image")
 parser.add_argument('-g','--grayscale', help="converts image to grayscale", action="store_true")
 parser.add_argument('-s','--size', metavar="OUTPUTWIDTH", type=int, default=2000, help="specify output-width of clean image")
 
@@ -182,7 +182,10 @@ if __name__ == "__main__":
         save_tail = "clean_{}".format(save_tail)
         save_filename = os.path.join(save_head,save_tail)
         print("save {}".format(save_filename))
-        skiio.imsave(save_filename, image)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            skiio.imsave(save_filename, image)
 
     pdf = fpdf.FPDF(orientation="P", unit="pt", format="A4")
 
