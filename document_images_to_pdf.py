@@ -55,16 +55,15 @@ def get_transf_func(thresh):
 
     interpolation = scipyi.splev(u3,tck)
 
-    xx_i = np.arange(256, dtype=np.uint8)
     x_i = np.round(interpolation[0]).astype(np.uint8)
     y_i = list()
-    for i in xx_i:
+    for i in range(256):
         indices = np.where(x_i == i)
         num_indices = np.array(indices).shape[-1]
         i_sum = np.sum(interpolation[1][indices])
         y_i.append(i_sum/num_indices)
     y_i = np.round(np.array(y_i)).astype(np.uint8)
-    return xx_i,y_i
+    return y_i
 
 
 def text_enhancing_point_transform(input_image):
@@ -92,10 +91,8 @@ def text_enhancing_point_transform(input_image):
     white_bin_thresh = args_d_hist_low.max()
 
     # transform image using spline to obtain transformation-function
-    x_i,y_i = get_transf_func(white_bin_thresh)
-    sort_idx = np.argsort(x_i)
-    idx = np.searchsorted(x_i, input_image, sorter=sort_idx)
-    return y_i[sort_idx][idx]
+    y_i = get_transf_func(white_bin_thresh)
+    return y_i[input_image]
 
 
 def find_corners(binary_image):
