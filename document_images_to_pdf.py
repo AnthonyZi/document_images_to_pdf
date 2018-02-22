@@ -20,7 +20,7 @@ import math
 parser = argparse.ArgumentParser(description="clean document-photographs")
 
 parser.add_argument('files', metavar="INPUT_IMAGES", type=str, nargs='+', help="input-images to clean")
-parser.add_argument('-t','--threshold', metavar="THRESHOLD", type=float, default=0.80, help="grayscale-threshold used to find corners in binariesed image")
+#parser.add_argument('-t','--threshold', metavar="THRESHOLD", type=float, default=0.80, help="grayscale-threshold used to find corners in binariesed image")
 parser.add_argument('-g','--grayscale', help="converts image to grayscale", action="store_true")
 parser.add_argument('-s','--size', metavar="OUTPUTWIDTH", type=int, default=2000, help="specify output-width of clean image")
 parser.add_argument('-e','--enhance_text', help="enhance text using an point-operation to transform colours", action="store_true")
@@ -28,6 +28,7 @@ parser.add_argument('-e','--enhance_text', help="enhance text using an point-ope
 
 sqrt2 = 1.4142135623730951454746218587388284504413604736328125
 processing_width = 500
+threshold = "comb"
 
 
 
@@ -65,13 +66,7 @@ def get_transf_func(thresh):
     y_i = np.round(np.array(y_i)).astype(np.uint8)
     return y_i
 
-
-def text_enhancing_point_transform(input_image):
-
-    # get threshold for white pixels
-    hist,bins = np.histogram(input_image, bins=np.arange(256))
-    bins = bins[1:]
-
+def get_paper_thresh(hist):
     b2 = np.array(list(hist)+[0], dtype=np.float)
     b1 = np.array([0]+list(hist), dtype=np.float)
     d_hist = (b2-b1)/2
@@ -85,20 +80,71 @@ def text_enhancing_point_transform(input_image):
 
     argmax_d_hist = np.argmax(d_hist)
     max_d_hist = d_hist[argmax_d_hist]
-    white_d_hist_threshold = int(max_d_hist/200)
+    white_d_hist_threshold = int(max_d_hist/100)
     args_d_hist_low = np.where(d_hist<=white_d_hist_threshold)
     args_d_hist_low = np.where(args_d_hist_low<argmax_d_hist, args_d_hist_low, 0)
-    white_bin_thresh = args_d_hist_low.max()
+    paper_thresh = args_d_hist_low.max()
 
-    # transform image using spline to obtain transformation-function
-    y_i = get_transf_func(white_bin_thresh)
+    return paper_thresh
+
+
+def get_otsu_thresh(hist):
+    hist_sum = hist.sum()
+    hist_mean = hist.mean()
+
+    q_list = []
+    for t in list(range(len(hist)))[1:]:
+        h0 = np.zeros_like(hist)
+        h1 = np.zeros_like(hist)
+        h0[:t] = hist[:t]
+        h1[t:] = hist[t:]
+        hist_mean0 = h0[:t].mean()
+        hist_mean1 = h1[t:].mean()
+        hist_sum0 = h0.sum()
+        hist_sum1 = h1.sum()
+
+        sigma0 = np.sum(np.square(h0-hist_mean0)*(h0/hist_sum))
+        sigma1 = np.sum(np.square(h1-hist_mean0)*(h1/hist_sum))
+
+        p0 = h0.sum()/hist_sum
+        p1 = h1.sum()/hist_sum
+
+        sigma_in = p0*sigma0 + p1*sigma1
+
+        sigma_zw = p0*np.square(hist_mean0-hist_mean) + p1*np.square(hist_mean1-hist_mean)
+
+        q = sigma_zw/sigma_in
+        q_list.append(q)
+    q_list = np.array(q_list)
+    otsu_thresh = np.argmax(q_list)
+    return otsu_thresh
+
+
+def text_enhancing_point_transform(input_image):
+
+    # get threshold for white pixels
+    hist,bins = np.histogram(input_image, bins=np.arange(256))
+    bins = bins[1:]
+
+    if threshold == "paper":
+        paper_thresh = get_paper_thresh(hist)
+        y_i = get_transf_func(paper_thresh)
+    elif threshold == "otsu":
+        otsu_thresh = get_otsu_thresh(hist)
+        y_i = get_transf_func(otsu_thresh)
+    elif threshold == "comb":
+        paper_thresh = get_paper_thresh(hist)
+        otsu_thresh = get_otsu_thresh(hist)
+        comb_thresh = int(0.4*otsu_thresh+0.6*paper_thresh)
+        y_i = get_transf_func(comb_thresh)
+
     return y_i[input_image]
 
 
 def find_corners(binary_image):
     min_val = binary_image.min()
     max_val = binary_image.max()
-    img_thresh = min_val+(threshold*(max_val-min_val))
+    img_thresh = min_val+(0.8*(max_val-min_val))
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -185,7 +231,7 @@ if __name__ == "__main__":
     a4_width = args.size
     grayscale = args.grayscale
     enhance_text = args.enhance_text
-    threshold = args.threshold
+#    threshold = args.threshold
     images_list = args.files
 
     a4_size = (a4_width,int(a4_width*sqrt2+0.5))
@@ -238,8 +284,10 @@ if __name__ == "__main__":
 
         if enhance_text:
             print("enhance_text", end=" - ", flush=True)
+            image = 255-np.array(cv2.morphologyEx(image,cv2.MORPH_BLACKHAT,np.ones((20,20))), dtype=np.uint8)
             image = text_enhancing_point_transform(image).astype(np.uint8)
             image = (skie.equalize_adapthist(image)*255).astype(np.uint8)
+
 
         save_head,save_tail = os.path.split(filename)
         save_tail = "clean_{}".format(save_tail)
@@ -270,5 +318,4 @@ if __name__ == "__main__":
         fhead,ftail = os.path.split(filename)
         ftail = "clean_{}".format(ftail)
         fname = os.path.join(fhead,ftail)
-
         os.remove(fname)
