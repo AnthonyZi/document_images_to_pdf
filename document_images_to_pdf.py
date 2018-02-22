@@ -119,6 +119,11 @@ def get_otsu_thresh(hist):
     otsu_thresh = np.argmax(q_list)
     return otsu_thresh
 
+def get_combined_thresh(hist, factor=0.8):
+    paper_thresh = get_paper_thresh(hist)
+    otsu_thresh = get_otsu_thresh(hist)
+    return int((1-factor)*otsu_thresh+factor*paper_thresh)
+
 
 def text_enhancing_point_transform(input_image):
 
@@ -133,23 +138,25 @@ def text_enhancing_point_transform(input_image):
         otsu_thresh = get_otsu_thresh(hist)
         y_i = get_transf_func(otsu_thresh)
     elif threshold == "comb":
-        paper_thresh = get_paper_thresh(hist)
-        otsu_thresh = get_otsu_thresh(hist)
-        comb_thresh = int(0.4*otsu_thresh+0.6*paper_thresh)
+        comb_thresh = get_combined_thresh(hist)
         y_i = get_transf_func(comb_thresh)
 
     return y_i[input_image]
 
 
-def find_corners(binary_image):
-    min_val = binary_image.min()
-    max_val = binary_image.max()
-    img_thresh = min_val+(0.8*(max_val-min_val))
+def find_corners(lightness_image):
+    min_val = lightness_image.min()
+    max_val = lightness_image.max()
+    lightness_image = np.round((lightness_image-min_val)/(max_val-min_val)*255).astype(np.uint8)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        binary_image = skie.equalize_adapthist(binary_image, kernel_size=processing_width/50)
-    binary_image = np.where(binary_image>img_thresh,1,0)
+        lightness_image = np.round(skie.equalize_adapthist(lightness_image, kernel_size=processing_width/50)*255).astype(np.uint8)
+
+    hist,bins = np.histogram(lightness_image, bins=256)
+    img_thresh = get_combined_thresh(hist)
+
+    binary_image = np.where(lightness_image>img_thresh,1,0)
 
     binary_image = skimo.binary_erosion(binary_image, skimo.disk(processing_width/200))
     binary_image = skimo.binary_dilation(binary_image, skimo.disk(processing_width/200))
@@ -253,12 +260,13 @@ if __name__ == "__main__":
         w_factor = w/p_size_w
 
         print("find_corners", end=" - ", flush=True)
-        binary_image = np.array(original_image, dtype=np.uint8)
-        binary_image = skit.resize(binary_image, (p_size_h,p_size_w), mode="constant")
-        if len(binary_image) >2:
-            binary_image = skic.rgb2gray(binary_image)
+        lightness_image = np.array(original_image, dtype=np.uint8)
+        lightness_image = skit.resize(lightness_image, (p_size_h,p_size_w), mode="constant")
+        if len(lightness_image) >2:
+            lightness_image = skic.rgb2lab(lightness_image)[:,:,0]
 
-        topl,topr,botl,botr = find_corners(binary_image)
+
+        topl,topr,botl,botr = find_corners(lightness_image)
         topl = (topl[0]*w_factor, topl[1]*h_factor)
         topr = (topr[0]*w_factor, topr[1]*h_factor)
         botl = (botl[0]*w_factor, botl[1]*h_factor)
