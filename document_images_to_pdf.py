@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser(description="clean document-photographs")
 
 parser.add_argument('files', metavar="INPUT_IMAGES", type=str, nargs='+', help="input-images to clean")
 #parser.add_argument('-t','--threshold', metavar="THRESHOLD", type=float, default=0.80, help="grayscale-threshold used to find corners in binariesed image")
-parser.add_argument('-t', '--threshold', metavar="THRESHOLD", type=str, default="comb", help="choose type of threshold used for text-enhancement")
+parser.add_argument('-t', '--threshold', metavar="THRESHOLD", type=str, default="comb", help="choose type of threshold used for text-enhancement. Possible values: 'paper','otsu','comb'")
 parser.add_argument('-g','--grayscale', help="converts image to grayscale", action="store_true")
 parser.add_argument('-s','--size', metavar="OUTPUTWIDTH", type=int, default=2000, help="specify output-width of clean image")
 parser.add_argument('-e','--enhance_text', help="enhance text using an point-operation to transform colours", action="store_true")
