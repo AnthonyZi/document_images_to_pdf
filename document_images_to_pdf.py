@@ -158,8 +158,10 @@ def find_corners(lightness_image):
 
     binary_image = np.where(lightness_image>img_thresh,1,0)
 
+
     binary_image = skimo.binary_erosion(binary_image, skimo.disk(processing_width/200))
     binary_image = skimo.binary_dilation(binary_image, skimo.disk(processing_width/200))
+
 
     sx = scipynd.sobel(binary_image, axis=0, mode="constant")
     sy = scipynd.sobel(binary_image, axis=1, mode="constant")
